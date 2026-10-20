@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>구절 연대표</title>
+<style>
+  :root {
+    --bg: #f7f5f0; --fg: #1f1d1a; --muted: #6b665e; --line: #c9c2b5;
+    --card: #fff; --accent: #8a5a2b; --tag: #efe7da; --shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #17161a; --fg: #ece8e1; --muted: #a29c92; --line: #46424a;
+      --card: #222026; --accent: #d9a46a; --tag: #34302a; --shadow: none; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--fg); display: flex; flex-direction: column;
+    font: 14px/1.55 "Pretendard", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; }
+  header .sp { flex: 1; }
+  header a, header button { color: var(--accent); font: inherit; background: none; border: 1px solid var(--line);
+    border-radius: 6px; padding: 4px 10px; cursor: pointer; text-decoration: none; }
+  #status { color: var(--muted); }
+  #tl { flex: 1; overflow: auto; padding: 0 16px 24px; }
+  .track { display: flex; width: max-content; min-height: 100%; position: relative; }
+  .track::before { content: ""; position: absolute; left: 0; right: 0; top: 56px; border-top: 2px solid var(--line); }
+  .col { width: 230px; padding: 0 8px; position: relative; flex: none; }
+  .year { height: 46px; display: flex; align-items: flex-end; justify-content: center; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); margin: 3px auto 14px; position: relative; }
+  .gap { width: 70px; flex: none; position: relative; }
+  .gap span { position: absolute; top: 44px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--muted); background: var(--bg); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; box-shadow: var(--shadow); }
+  .title { font-weight: 700; white-space: pre-line; }
+  .tag { display: inline-block; background: var(--tag); border-radius: 4px; padding: 1px 6px; margin-top: 6px; font-size: 12px; white-space: pre-line; }
+  details { margin-top: 8px; font-size: 13px; }
+  summary { cursor: pointer; color: var(--accent); white-space: pre-line; }
+  details p { margin: 6px 0 0; color: var(--muted); white-space: pre-line; }
+  .ref { margin-top: 8px; font-size: 13px; color: var(--accent); white-space: pre-line; }
+</style>
+</head>
+<body>
+<header>
+  <h1>구절 연대표</h1>
+  <span id="status">불러오는 중…</span>
+  <span class="sp"></span>
+  <button id="reload">새로고침</button>
+  <a id="edit" target="_blank" rel="noopener">시트 편집</a>
+</header>
+<main id="tl"></main>
+<script>
+// 데이터 원본: 이 시트의 탭 (A 연도 | B 구절 | C 구절 본문 | D 왕력 | E 내용)
+const SHEET_ID = '1Zm7x7zXGqF2m4vFOc4JiRz3wGOwcstmk_RwELgnhtIA';
+const TAB = new URLSearchParams(location.search).get('tab') || '구절연표';
+
+const $ = s => document.querySelector(s);
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+$('#edit').href = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
+
+// "BC 960?", "BC445\nBC444", "BC553or552", "1914.7", "2022.2.24" → 정렬용 숫자
+function parseYear(raw) {
+  const s = raw.replace(/\s+/g, '');
+  const m = s.match(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+  if (!m) return null;
+  const year = /BC|B\.C|기원전/i.test(s) ? -m[1] : +m[1];
+  return { year, key: year + (+m[2] || 0) / 13 + (+m[3] || 0) / 400 };
+}
+
+const label = raw => raw.trim().replace(/\s*\n\s*/g, ' / ').replace(/BC\s*/gi, 'BC ');
+
+function render(rows) {
+  const items = rows.map((r, i) => {
+    const [yr, ref, verse, reign, body] = r.map(c => (c && (c.f ?? c.v) != null ? String(c.f ?? c.v).trim() : ''));
+    const p = parseYear(yr);
+    return p && { ...p, i, raw: yr, ref, verse, reign, body };
+  }).filter(Boolean).sort((a, b) => a.key - b.key || a.i - b.i);
+
+  const groups = [];
+  for (const it of items) {
+    const g = groups.at(-1);
+    g && g.year === it.year ? g.items.push(it) : groups.push({ year: it.year, items: [it] });
+  }
+
+  let html = '', prev = null;
+  for (const g of groups) {
+    if (prev !== null) {
+      const diff = g.year - prev - (prev < 0 && g.year > 0 ? 1 : 0); // 0년 없음
+      if (diff > 1) html += `<div class="gap"><span>··· ${diff}년 ···</span></div>`;
+    }
+    prev = g.year;
+    const years = [...new Set(g.items.map(it => label(it.raw)))].join(' · ');
+    html += `<div class="col"><div class="year">${esc(years)}</div><div class="dot"></div>`;
+    for (const it of g.items) {
+      const title = it.body || it.reign || it.ref;
+      html += `<div class="card"><div class="title">${esc(title)}</div>`;
+      if (it.body && it.reign) html += `<div class="tag">${esc(it.reign)}</div>`;
+      if (it.ref && it.verse) html += `<details><summary>${esc(it.ref)}</summary><p>${esc(it.verse)}</p></details>`;
+      else if (it.ref && title !== it.ref) html += `<div class="ref">${esc(it.ref)}</div>`;
+      html += `</div>`;
+    }
+    html += `</div>`;
+  }
+  $('#tl').innerHTML = `<div class="track">${html}</div>`;
+  const skipped = rows.length - items.length;
+  $('#status').textContent = `${items.length}개 항목` + (skipped ? ` (연도 없는 행 ${skipped}개 제외)` : '');
+}
+
+// 시트 CSV는 CORS가 막혀 있어 gviz JSONP로 읽는다 (시트가 '링크 있는 사용자 보기' 공개여야 함)
+window.onSheet = res => res.status === 'ok'
+  ? render(res.table.rows.map(r => r.c))
+  : ($('#status').textContent = '시트 오류: ' + (res.errors?.[0]?.detailed_message || res.status));
+
+function load() {
+  $('#status').textContent = '불러오는 중…';
+  document.querySelector('script[data-sheet]')?.remove();
+  const s = document.createElement('script');
+  s.dataset.sheet = 1;
+  s.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=responseHandler:onSheet&headers=1`
+        + `&sheet=${encodeURIComponent(TAB)}&_=${Date.now()}`;
+  s.onerror = () => $('#status').textContent = '시트를 불러오지 못했습니다 (공유 설정 확인)';
+  document.body.append(s);
+}
+$('#reload').onclick = load;
+
+// 세로 휠 → 가로 스크롤
+$('#tl').addEventListener('wheel', e => {
+  if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && !e.shiftKey) { $('#tl').scrollLeft += e.deltaY; e.preventDefault(); }
+}, { passive: false });
+
+load();
+</script>
+</body>
+</html>
