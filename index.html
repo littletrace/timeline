@@ -23,8 +23,8 @@
   header a, header button { color: var(--accent); font: inherit; background: none; border: 1px solid var(--line);
     border-radius: 6px; padding: 4px 10px; cursor: pointer; text-decoration: none; }
   #status { color: var(--muted); }
-  #tl { flex: 1; overflow: auto; padding: 0 16px 24px; }
-  .track { display: flex; width: max-content; min-height: 100%; position: relative; }
+  #tl { flex: 1; overflow: auto; padding: 0 16px 24px; display: flex; }
+  .track { display: flex; width: max-content; margin: auto 0; position: relative; } /* 세로 중앙, 넘치면 위부터 */
   .track::before { content: ""; position: absolute; left: 0; right: 0; top: 56px; border-top: 2px solid var(--line); }
   .col { width: 230px; padding: 0 8px; position: relative; flex: none; }
   .year { height: 46px; display: flex; align-items: flex-end; justify-content: center; font-weight: 700; color: var(--accent); white-space: nowrap; }
