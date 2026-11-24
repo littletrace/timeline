@@ -50,7 +50,7 @@
 </header>
 <main id="tl"></main>
 <script>
-// 데이터 원본: 이 시트의 탭 (A 연도 | B 구절 | C 구절 본문 | D 왕력 | E 내용)
+// 데이터 원본: 이 시트의 탭 (A 연도 | B 왕력 | C 구절 | D 구절 본문 | E 내용)
 const SHEET_ID = '1Zm7x7zXGqF2m4vFOc4JiRz3wGOwcstmk_RwELgnhtIA';
 const TAB = new URLSearchParams(location.search).get('tab') || '구절연표';
 
@@ -71,7 +71,7 @@ const label = raw => raw.trim().replace(/\s*\n\s*/g, ' / ').replace(/BC\s*/gi, '
 
 function render(rows) {
   const items = rows.map((r, i) => {
-    const [yr, ref, verse, reign, body] = r.map(c => (c && (c.f ?? c.v) != null ? String(c.f ?? c.v).trim() : ''));
+    const [yr, reign, ref, verse, body] = r.map(c => (c && (c.f ?? c.v) != null ? String(c.f ?? c.v).trim() : ''));
     const p = parseYear(yr);
     return p && { ...p, i, raw: yr, ref, verse, reign, body };
   }).filter(Boolean).sort((a, b) => a.key - b.key || a.i - b.i);
